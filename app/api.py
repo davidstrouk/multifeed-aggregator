@@ -5,7 +5,7 @@ from fastapi import FastAPI, Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from . import crud, models
-from .background import aggregate_from_all_sources
+from .background import initial_setup_and_subscribe, polling_task, aggregate_from_all_sources
 from .database import connect_to_db, close_db_connection, get_db
 
 app = FastAPI(
@@ -18,9 +18,11 @@ app = FastAPI(
 async def startup_event():
     """On startup, connect to DB and perform initial data fetch."""
     await connect_to_db()
-    # Run the initial data fetch in the background as a separate task
-    # so it doesn't block the server from starting.
-    asyncio.create_task(aggregate_from_all_sources(db=get_db()))
+    db = get_db()
+    # Perform initial fetch and webhook subscription
+    asyncio.create_task(initial_setup_and_subscribe(db))
+    # Start the fallback polling task
+    asyncio.create_task(polling_task(db))
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -83,3 +85,11 @@ async def webhook_callback(
     # Reuse the existing CRUD function to save the single item.
     await crud.save_items_to_db(db, [item])
     return {"status": "accepted"}
+
+
+@app.post("/admin/force-resync", status_code=202, tags=["Admin"])
+async def force_resync(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """An admin endpoint to manually trigger a full data sync."""
+    # This simply schedules the existing aggregation task to run immediately.
+    asyncio.create_task(aggregate_from_all_sources(db))
+    return {"message": "Full data synchronization has been triggered in the background."}

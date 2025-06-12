@@ -18,3 +18,9 @@ DATA_PROVIDERS = {
     #     "streams": ["alpha", "beta"],
     # }
 }
+
+MONGO_URI = os.getenv("MONGO_URI")
+DB_NAME = "data_aggregator_db"
+
+POLLING_INTERVAL_SECONDS = 300  # 5 minutes for fallback polling
+HTTP_TIMEOUT_SECONDS = 10 # Timeout for external API calls
