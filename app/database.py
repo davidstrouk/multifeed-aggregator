@@ -21,6 +21,10 @@ async def connect_to_db():
         print("Using in-memory mongomock database.")
         db_manager.client = mongomock.AsyncMongoMockClient()
     db_manager.db = db_manager.client[DB_NAME]
+    await db_manager.db.items.create_index(
+        [("stream", 1), ("created_at", 1)],
+        unique=True
+    )
 
 async def close_db_connection():
     """Closes the database connection."""
