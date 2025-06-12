@@ -5,3 +5,7 @@ aiohttp
 pydantic
 motor
 mongomock-motor
+pytest
+pytest-asyncio
+httpx
+respx
