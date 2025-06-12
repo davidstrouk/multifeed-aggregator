@@ -63,3 +63,23 @@ async def subscribe_to_topic(
     """
     await crud.subscribe_user_to_topic(db, subscription)
     return {"message": f"User {subscription.user_id} subscribed to topic {subscription.topic}"}
+
+
+@app.post("/webhook/callback/{stream_name}", status_code=202, tags=["Internal"])
+async def webhook_callback(
+    stream_name: str,
+    item: models.SourceItem = Body(...),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Endpoint to receive webhook callbacks for new data items.
+    """
+    # Basic validation: ensure the stream name in the path matches the body.
+    if item.stream != stream_name:
+         raise HTTPException(
+            status_code=400,
+            detail=f"Inconsistent stream name in webhook payload."
+        )
+    # Reuse the existing CRUD function to save the single item.
+    await crud.save_items_to_db(db, [item])
+    return {"status": "accepted"}

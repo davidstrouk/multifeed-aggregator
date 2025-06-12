@@ -33,6 +33,9 @@ async def test_client():
         # Simulate a stream that is up but has no data.
         mock.get("/stream4/").respond(200, json=[])
 
+        for stream in DATA_PROVIDERS["heroku_provider"]["streams"]:
+             mock.post(f"/subscribe/{stream}").respond(200)
+
         # Create an async client to interact with our app.
         async with AsyncClient(app=app, base_url="http://test") as client:
             # Manually run the startup events, which connects to the DB
@@ -110,3 +113,35 @@ async def test_subscription_flow(test_client: AsyncClient):
     # A more robust check is to look at the set of topics.
     topics_in_response = {item['topic'] for item in items_2}
     assert topics_in_response == {"news", "food"}
+
+
+@pytest.mark.anyio
+async def test_webhook_callback(test_client: AsyncClient):
+    """
+    Tests that the webhook callback endpoint correctly processes and saves a new item.
+    """
+    # Define a new item that would be sent by the external service.
+    # Give it a future date to make it easy to find as the newest item.
+    webhook_item = {
+        "created_at": "2026-01-01T00:00:00Z",
+        "stream": "stream1",
+        "topic": "games",
+        "image": "new_img",
+        "data": "new data from webhook"
+    }
+    
+    # Simulate the external service calling our webhook endpoint.
+    response = await test_client.post(
+        "/webhook/callback/stream1",
+        json=webhook_item
+    )
+    # 202 Accepted is the correct response for an async task.
+    assert response.status_code == 202
+
+    # Now, verify that the item was added to the database by fetching all items.
+    all_items_response = await test_client.get("/items/all")
+    all_items = all_items_response.json()
+    
+    # The new item from the webhook should be the first one in the list (newest).
+    assert all_items[0]["data"] == "new data from webhook"
+    assert all_items[0]["topic"] == "games"

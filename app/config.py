@@ -1,3 +1,10 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+APP_BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:8000")
+
 # Configuration for data sources
 # This structure allows us to support multiple different source providers.
 DATA_PROVIDERS = {
