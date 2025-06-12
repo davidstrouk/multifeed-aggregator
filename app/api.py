@@ -37,3 +37,29 @@ async def get_all_aggregated_items(db: AsyncIOMotorDatabase = Depends(get_db)):
     This data is now read from the database.
     """
     return await crud.get_all_items(db)
+
+
+@app.get("/items/subscribed/{user_id}", response_model=List[models.SourceItem], tags=["Items"])
+async def get_subscribed_items(user_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Fetch a list of items from topics the user has previously subscribed to,
+    ordered by date.
+    """
+    # Step 1: Get the list of topics the user is subscribed to.
+    topics = await crud.get_user_subscriptions(db, user_id)
+    if not topics:
+        return [] # Return an empty list if the user has no subscriptions.
+    # Step 2: Fetch all items that match those topics.
+    return await crud.get_items_by_topics(db, topics)
+
+
+@app.post("/subscriptions", status_code=201, tags=["Subscriptions"])
+async def subscribe_to_topic(
+    subscription: models.SubscriptionRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Subscribe a user to a specific topic.
+    """
+    await crud.subscribe_user_to_topic(db, subscription)
+    return {"message": f"User {subscription.user_id} subscribed to topic {subscription.topic}"}

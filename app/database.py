@@ -21,8 +21,13 @@ async def connect_to_db():
         print("Using in-memory mongomock database.")
         db_manager.client = mongomock.AsyncMongoMockClient()
     db_manager.db = db_manager.client[DB_NAME]
+    
     await db_manager.db.items.create_index(
         [("stream", 1), ("created_at", 1)],
+        unique=True
+    )
+    await db_manager.db.subscriptions.create_index(
+        [("user_id", 1), ("topic", 1)],
         unique=True
     )
 
