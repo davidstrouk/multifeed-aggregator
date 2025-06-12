@@ -1,43 +1,39 @@
 import asyncio
 from typing import List
-import aiohttp
-from fastapi import FastAPI
 
-from . import models, background, config
+from fastapi import FastAPI, Depends
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
+from . import crud, models
+from .background import aggregate_from_all_sources
+from .database import connect_to_db, close_db_connection, get_db
 
 app = FastAPI(
-    title="Data Aggregator Service",
-    description="A simple service to aggregate data from multiple sources.",
-    version="0.0.1",
+    title="Data Aggregator API",
+    description="Fetches and aggregates data from multiple sources.",
+    version="1.0.0",
 )
+
+@app.on_event("startup")
+async def startup_event():
+    """On startup, connect to DB and perform initial data fetch."""
+    await connect_to_db()
+    # Run the initial data fetch in the background as a separate task
+    # so it doesn't block the server from starting.
+    asyncio.create_task(aggregate_from_all_sources(db=get_db()))
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """On shutdown, close the DB connection."""
+    await close_db_connection()
 
 
 @app.get("/items/all", response_model=List[models.SourceItem], tags=["Items"])
-async def get_all_aggregated_items_live():
+async def get_all_aggregated_items(db: AsyncIOMotorDatabase = Depends(get_db)):
     """
-    Fetches, aggregates, and sorts items live from all sources.
+    Fetch a list of all items aggregated from different sources,
+    ordered by the date of appearance (newest first).
+
+    This data is now read from the database.
     """
-    tasks = []
-    all_items = []
-
-    # Use a single session for all requests for performance
-    async with aiohttp.ClientSession() as session:
-        # Create a fetch task for every stream in our configuration
-        for provider_config in config.DATA_PROVIDERS.values():
-            base_url = provider_config["base_url"]
-            for stream in provider_config["streams"]:
-                task = background.fetch_stream_data(session, base_url, stream)
-                tasks.append(task)
-        
-        # Run all fetch tasks concurrently
-        results = await asyncio.gather(*tasks)
-
-    # Aggregate results from all successful tasks
-    for result_list in results:
-        if result_list:  # Check if the fetch was successful (not None)
-            all_items.extend(result_list)
-    
-    # Sort the final list by date of appearance (newest first)
-    all_items.sort(key=lambda item: item.created_at, reverse=True)
-    
-    return all_items
+    return await crud.get_all_items(db)

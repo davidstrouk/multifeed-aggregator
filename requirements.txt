@@ -3,3 +3,5 @@ uvicorn[standard]
 python-dotenv
 aiohttp
 pydantic
+motor
+mongomock-motor
